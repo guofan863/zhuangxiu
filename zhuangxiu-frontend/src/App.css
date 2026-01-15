@@ -1,0 +1,221 @@
+.site-layout {
+  flex: 1;
+}
+
+.site-layout-header {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  z-index: 1;
+}
+
+/* 登录注册页面样式 */
+.login-form,
+.register-form {
+  max-width: 400px;
+  margin: 100px auto;
+  padding: 30px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.1);
+}
+
+.login-form h1,
+.register-form h1 {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #1890ff;
+}
+
+/* 首页样式 */
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.dashboard-card {
+  padding: 20px;
+  border-radius: 8px;
+  background: #f0f2f5;
+  text-align: center;
+}
+
+.dashboard-card h3 {
+  margin-bottom: 10px;
+  color: #666;
+}
+
+.dashboard-card .number {
+  font-size: 32px;
+  font-weight: bold;
+  color: #1890ff;
+}
+
+/* 项目管理页面样式 */
+.project-list {
+  margin-top: 20px;
+}
+
+.project-card {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.project-card .ant-card-head {
+  background: #fafafa;
+}
+
+/* 装修公司对比页面样式 */
+.company-comparison {
+  margin-top: 20px;
+}
+
+.comparison-table {
+  margin-bottom: 30px;
+}
+
+.radar-chart {
+  margin-top: 30px;
+  height: 400px;
+}
+
+/* 合同管理页面样式 */
+.contract-list {
+  margin-top: 20px;
+}
+
+.contract-card {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 设计对比页面样式 */
+.design-comparison {
+  margin-top: 20px;
+}
+
+.image-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.image-card {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.image-card img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+}
+
+/* 施工管控页面样式 */
+.construction-management {
+  margin-top: 20px;
+}
+
+.progress-timeline {
+  margin-top: 20px;
+}
+
+.cost-control {
+  margin-top: 30px;
+}
+
+/* 验收对比页面样式 */
+.acceptance-comparison {
+  margin-top: 20px;
+}
+
+.acceptance-list {
+  margin-top: 20px;
+}
+
+.acceptance-card {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .site-layout-content {
+    margin: 12px;
+    padding: 16px;
+  }
+
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .image-comparison {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 自定义按钮样式 */
+.btn-primary {
+  background: #1890ff;
+  border-color: #1890ff;
+}
+
+.btn-primary:hover {
+  background: #40a9ff;
+  border-color: #40a9ff;
+}
+
+.btn-danger {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+}
+
+.btn-danger:hover {
+  background: #ff7875;
+  border-color: #ff7875;
+}
+
+/* 自定义表单样式 */
+.form-item {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  font-weight: 500;
+  margin-bottom: 8px;
+  display: block;
+  color: #333;
+}
+
+/* 自定义表格样式 */
+.table-container {
+  margin-top: 20px;
+  overflow-x: auto;
+}
+
+/* 加载动画 */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+}
+
+/* 错误提示 */
+.error-message {
+  color: #ff4d4f;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+/* 成功提示 */
+.success-message {
+  color: #52c41a;
+  margin-top: 8px;
+  font-size: 14px;
+}
