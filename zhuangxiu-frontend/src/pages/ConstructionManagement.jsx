@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Button, Table, Modal, Form, Input, Select, DatePicker, InputNumber, Upload, message, Typography, Space, Popconfirm, Tabs, Row, Col, Progress, Alert, Statistic } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, UploadOutlined, BarChartOutlined, DollarOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Button, Table, Modal, Form, Input, Select, DatePicker, InputNumber, Upload, message, Typography, Space, Popconfirm, Tabs, Row, Col, Progress, Alert, Statistic, Timeline, Tag, Empty, Skeleton } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, UploadOutlined, BarChartOutlined, DollarOutlined, ClockCircleOutlined, CheckCircleOutlined, LoadingOutlined, RocketOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import * as echarts from 'echarts';
 import { constructionAPI, uploadAPI } from '../services/api';
 
-const { Title, Paragraph } = Typography;
+const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
@@ -30,8 +30,21 @@ const ConstructionManagement = () => {
 
   // 绘制费用统计图表
   useEffect(() => {
-    if (costs.length > 0) {
-      drawCostChart();
+    if (costs.length > 0 && chartRef.current) {
+      // 延迟一下确保DOM已渲染
+      const timer = setTimeout(() => {
+        drawCostChart();
+      }, 100);
+      
+      return () => {
+        clearTimeout(timer);
+      };
+    } else if (costs.length === 0 && chartInstanceRef.current) {
+      // 如果没有数据，清理图表
+      if (chartInstanceRef.current && !chartInstanceRef.current.isDisposed()) {
+        chartInstanceRef.current.dispose();
+        chartInstanceRef.current = null;
+      }
     }
   }, [costs]);
 
@@ -43,142 +56,144 @@ const ConstructionManagement = () => {
 
       // 获取施工进度
       const constructionResponse = await constructionAPI.getAll();
-      setConstructions(constructionResponse.data || constructionResponse || []);
+      const constructionData = constructionResponse.data || constructionResponse || [];
+      setConstructions(Array.isArray(constructionData) ? constructionData : []);
 
       // 获取费用记录
       const costResponse = await constructionAPI.getCosts();
-      setCosts(costResponse.data || costResponse || []);
+      const costData = costResponse.data || costResponse || [];
+      setCosts(Array.isArray(costData) ? costData : []);
     } catch (error) {
-      message.error('获取数据失败');
-      console.error('Fetch data error:', error);
-      setError('获取数据失败，请检查网络连接');
-
-      // 模拟数据（用于演示）
-      setConstructions([
-        {
-          id: 1,
-          stage: '水电',
-          name: '水电改造',
-          projectName: '三居室装修',
-          progress: 100,
-          plannedStartDate: '2024-01-01',
-          plannedEndDate: '2024-01-10',
-          actualStartDate: '2024-01-01',
-          actualEndDate: '2024-01-08',
-          status: 'completed',
-          image: ''
-        },
-        {
-          id: 2,
-          stage: '泥瓦',
-          name: '瓷砖铺贴',
-          projectName: '三居室装修',
-          progress: 80,
-          plannedStartDate: '2024-01-11',
-          plannedEndDate: '2024-01-25',
-          actualStartDate: '2024-01-11',
-          actualEndDate: null,
-          status: 'in_progress',
-          image: ''
-        }
-      ]);
-
-      setCosts([
-        {
-          id: 1,
-          category: '人工',
-          subcategory: '水电工',
-          projectName: '三居室装修',
-          amount: 8000,
-          paymentDate: '2024-01-08',
-          paymentMethod: '微信',
-          status: 'paid',
-          receiptImage: ''
-        },
-        {
-          id: 2,
-          category: '物料',
-          subcategory: '瓷砖',
-          projectName: '三居室装修',
-          amount: 15000,
-          paymentDate: '2024-01-10',
-          paymentMethod: '银行卡',
-          status: 'paid',
-          receiptImage: ''
-        },
-        {
-          id: 3,
-          category: '人工',
-          subcategory: '泥瓦工',
-          projectName: '三居室装修',
-          amount: 12000,
-          paymentDate: null,
-          paymentMethod: '微信',
-          status: 'pending',
-          receiptImage: ''
-        }
-      ]);
+      // 不显示错误消息，只记录日志，保持数据为空数组
+      console.error('获取数据失败:', error);
+      setConstructions([]);
+      setCosts([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const chartRef = useRef(null);
+  const chartInstanceRef = useRef(null);
+
   // 绘制费用统计图表
   const drawCostChart = () => {
-    const chartDom = document.getElementById('costChart');
-    if (!chartDom) return;
+    if (!chartRef.current || costs.length === 0) {
+      // 如果没有数据，清理图表实例
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.dispose();
+        chartInstanceRef.current = null;
+      }
+      return;
+    }
 
-    const myChart = echarts.init(chartDom);
+    // 如果已存在图表实例，先清理
+    if (chartInstanceRef.current) {
+      chartInstanceRef.current.dispose();
+    }
+
+    // 创建新的图表实例
+    const myChart = echarts.init(chartRef.current);
+    chartInstanceRef.current = myChart;
 
     // 计算费用统计
     const categoryStats = costs.reduce((acc, cost) => {
       if (!acc[cost.category]) {
         acc[cost.category] = 0;
       }
-      acc[cost.category] += cost.amount;
+      acc[cost.category] += cost.amount || 0;
       return acc;
     }, {});
 
+    const colors = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4'];
+
     const option = {
-      title: {
-        text: '费用分布',
-        left: 'center'
-      },
       tooltip: {
         trigger: 'item',
-        formatter: '{a} <br/>{b}: {c} ({d}%)'
+        formatter: '{b}: ¥{c}<br/>占比: {d}%',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        borderColor: '#333',
+        borderWidth: 0,
+        textStyle: {
+          color: '#fff'
+        }
       },
       legend: {
-        data: Object.keys(categoryStats),
-        bottom: 10
+        orient: 'horizontal',
+        bottom: 10,
+        textStyle: {
+          fontSize: 12
+        }
       },
+      color: colors,
       series: [
         {
           name: '费用',
           type: 'pie',
-          radius: '50%',
+          radius: ['40%', '70%'],
+          center: ['50%', '45%'],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 8,
+            borderColor: '#fff',
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter: '{b}\n¥{c}',
+            fontSize: 12
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 14,
+              fontWeight: 'bold'
+            },
+            itemStyle: {
+              shadowBlur: 15,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.3)'
+            }
+          },
           data: Object.entries(categoryStats).map(([category, amount]) => ({
             value: amount,
             name: category
-          })),
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
-            }
-          }
+          }))
         }
       ]
     };
 
     myChart.setOption(option);
 
-    // 响应式
-    window.addEventListener('resize', () => {
-      myChart.resize();
-    });
+    // 响应式处理
+    const handleResize = () => {
+      if (myChart && !myChart.isDisposed()) {
+        myChart.resize();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // 返回清理函数（虽然这里不会自动执行，但可以在 useEffect 中使用）
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (myChart && !myChart.isDisposed()) {
+        myChart.dispose();
+      }
+    };
   };
+
+  // 组件卸载时清理图表
+  useEffect(() => {
+    return () => {
+      if (chartInstanceRef.current && !chartInstanceRef.current.isDisposed()) {
+        chartInstanceRef.current.dispose();
+      }
+      // 清理 resize 监听器
+      const handleResize = () => {};
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   // 打开创建施工进度弹窗
   const openCreateModal = () => {
@@ -252,24 +267,15 @@ const ConstructionManagement = () => {
   // 处理文件上传
   const handleFileUpload = async (file) => {
     try {
-      const token = localStorage.getItem('token');
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await axios.post('http://localhost:5000/api/upload/single', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (response.data.status === 'success') {
+      const response = await uploadAPI.uploadSingle(file);
+      
+      if (response.status === 'success' || response.url) {
         message.success('文件上传成功');
         return {
           uid: file.uid,
           name: file.name,
           status: 'done',
-          url: response.data.data.url
+          url: response.url || response.data?.url
         };
       } else {
         message.error('文件上传失败');
@@ -453,45 +459,52 @@ const ConstructionManagement = () => {
       title: '进度',
       dataIndex: 'progress',
       key: 'progress',
-      render: (text) => (
-        <Progress percent={text} size="small" status={text === 100 ? 'success' : 'active'} />
-      )
+      render: (text) => {
+        const progress = text || 0;
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Progress 
+              percent={progress} 
+              size="small" 
+              status={progress === 100 ? 'success' : 'active'}
+              strokeColor={progress === 100 ? '#52c41a' : '#1890ff'}
+              style={{ flex: 1, maxWidth: 200 }}
+            />
+            <Text type="secondary" style={{ fontSize: '12px', minWidth: 40 }}>
+              {progress}%
+            </Text>
+          </div>
+        );
+      }
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
       render: (text) => {
-        let color = '';
-        let textMap = {
-          'not_started': '未开始',
-          'in_progress': '进行中',
-          'completed': '已完成'
+        const statusMap = {
+          'not_started': { label: '未开始', color: 'default' },
+          'in_progress': { label: '进行中', color: 'processing' },
+          'completed': { label: '已完成', color: 'success' }
         };
-
-        switch (text) {
-          case 'not_started':
-            color = 'default';
-            break;
-          case 'in_progress':
-            color = 'blue';
-            break;
-          case 'completed':
-            color = 'green';
-            break;
-          default:
-            color = 'default';
-        }
-
-        return <span style={{ color }}>{textMap[text] || text}</span>;
+        const status = statusMap[text] || { label: text, color: 'default' };
+        return <Tag color={status.color}>{status.label}</Tag>;
       }
     },
     {
       title: '操作',
       key: 'action',
+      fixed: 'right',
+      width: 180,
       render: (_, record) => (
-        <Space size="middle">
-          <Button type="primary" icon={<EditOutlined />} onClick={() => openEditModal(record)}>
+        <Space size="small">
+          <Button 
+            type="primary" 
+            size="small"
+            icon={<EditOutlined />} 
+            onClick={() => openEditModal(record)}
+            style={{ borderRadius: '6px' }}
+          >
             编辑
           </Button>
           <Popconfirm
@@ -502,7 +515,12 @@ const ConstructionManagement = () => {
             cancelText="取消"
             icon={<ExclamationCircleOutlined style={{ color: 'orange' }} />}
           >
-            <Button danger icon={<DeleteOutlined />}>
+            <Button 
+              danger 
+              size="small"
+              icon={<DeleteOutlined />}
+              style={{ borderRadius: '6px' }}
+            >
               删除
             </Button>
           </Popconfirm>
@@ -532,7 +550,14 @@ const ConstructionManagement = () => {
       title: '金额(元)',
       dataIndex: 'amount',
       key: 'amount',
-      render: (text) => new Intl.NumberFormat('zh-CN').format(text)
+      render: (text) => {
+        const amount = text || 0;
+        return (
+          <Text strong style={{ color: '#52c41a', fontSize: '14px' }}>
+            ¥{new Intl.NumberFormat('zh-CN').format(amount)}
+          </Text>
+        );
+      }
     },
     {
       title: '支付日期',
@@ -545,36 +570,29 @@ const ConstructionManagement = () => {
       dataIndex: 'status',
       key: 'status',
       render: (text) => {
-        let color = '';
-        let textMap = {
-          'pending': '待支付',
-          'paid': '已支付',
-          'refunded': '已退款'
+        const statusMap = {
+          'pending': { label: '待支付', color: 'warning' },
+          'paid': { label: '已支付', color: 'success' },
+          'refunded': { label: '已退款', color: 'default' }
         };
-
-        switch (text) {
-          case 'pending':
-            color = 'orange';
-            break;
-          case 'paid':
-            color = 'green';
-            break;
-          case 'refunded':
-            color = 'blue';
-            break;
-          default:
-            color = 'default';
-        }
-
-        return <span style={{ color }}>{textMap[text] || text}</span>;
+        const status = statusMap[text] || { label: text, color: 'default' };
+        return <Tag color={status.color}>{status.label}</Tag>;
       }
     },
     {
       title: '操作',
       key: 'action',
+      fixed: 'right',
+      width: 180,
       render: (_, record) => (
-        <Space size="middle">
-          <Button type="primary" icon={<EditOutlined />} onClick={() => openEditCostModal(record)}>
+        <Space size="small">
+          <Button 
+            type="primary" 
+            size="small"
+            icon={<EditOutlined />} 
+            onClick={() => openEditCostModal(record)}
+            style={{ borderRadius: '6px' }}
+          >
             编辑
           </Button>
           <Popconfirm
@@ -585,7 +603,12 @@ const ConstructionManagement = () => {
             cancelText="取消"
             icon={<ExclamationCircleOutlined style={{ color: 'orange' }} />}
           >
-            <Button danger icon={<DeleteOutlined />}>
+            <Button 
+              danger 
+              size="small"
+              icon={<DeleteOutlined />}
+              style={{ borderRadius: '6px' }}
+            >
               删除
             </Button>
           </Popconfirm>
@@ -597,19 +620,337 @@ const ConstructionManagement = () => {
   // 计算总费用
   const totalCost = costs.reduce((sum, cost) => sum + cost.amount, 0);
 
-  return (
-    <div className="construction-management-container" style={{ padding: '24px' }}>
-      <div style={{ marginBottom: '32px' }}>
-        <Title level={2} style={{ color: '#1890ff', marginBottom: '8px' }}>施工管理</Title>
-        <Paragraph>管理装修项目的施工进度和费用记录，实时监控工程进展</Paragraph>
-      </div>
+  // 装修施工流程步骤
+  const constructionSteps = [
+    {
+      key: 'design',
+      title: '设计阶段',
+      icon: <BarChartOutlined />,
+      color: '#1890ff',
+      duration: '7-15天',
+      description: '量房设计、方案确认、预算核算',
+      subSteps: [
+        '现场量房测量',
+        '设计方案制定',
+        '方案审核确认',
+        '预算报价核算',
+        '合同签订'
+      ]
+    },
+    {
+      key: 'preparation',
+      title: '前期准备',
+      icon: <CheckCircleOutlined />,
+      color: '#52c41a',
+      duration: '3-7天',
+      description: '材料采购、工人安排、场地准备',
+      subSteps: [
+        '主材采购',
+        '辅材采购',
+        '工人班组安排',
+        '施工场地清理',
+        '水电材料到位'
+      ]
+    },
+    {
+      key: 'water_electric',
+      title: '水电改造',
+      icon: <LoadingOutlined />,
+      color: '#faad14',
+      duration: '10-15天',
+      description: '水管、电路重新布局安装',
+      subSteps: [
+        '水电线路规划',
+        '墙体开槽',
+        '水管安装',
+        '电路布线',
+        '强弱电安装',
+        '水电验收'
+      ]
+    },
+    {
+      key: 'masonry',
+      title: '泥瓦工程',
+      icon: <ClockCircleOutlined />,
+      color: '#722ed1',
+      duration: '15-25天',
+      description: '墙体砌筑、地面基层处理',
+      subSteps: [
+        '墙体砌筑',
+        '防水施工',
+        '地面找平',
+        '墙面基层处理',
+        '阳台防水'
+      ]
+    },
+    {
+      key: 'woodworking',
+      title: '木工制作',
+      icon: <CheckCircleOutlined />,
+      color: '#13c2c2',
+      duration: '12-18天',
+      description: '橱柜、门窗、吊顶制作安装',
+      subSteps: [
+        '门窗制作安装',
+        '吊顶制作安装',
+        '橱柜制作安装',
+        '鞋柜制作安装',
+        '护墙板安装'
+      ]
+    },
+    {
+      key: 'painting',
+      title: '油漆工程',
+      icon: <LoadingOutlined />,
+      color: '#eb2f96',
+      duration: '8-12天',
+      description: '墙面涂刷、地面铺贴',
+      subSteps: [
+        '墙面基层处理',
+        '乳胶漆涂刷',
+        '地面砖铺贴',
+        '踢脚线安装',
+        '墙面修补'
+      ]
+    },
+    {
+      key: 'installation',
+      title: '安装工程',
+      icon: <ClockCircleOutlined />,
+      color: '#fa541c',
+      duration: '5-10天',
+      description: '五金、电器、洁具安装',
+      subSteps: [
+        '开关插座安装',
+        '灯具安装',
+        '洁具安装',
+        '五金件安装',
+        '电器设备安装'
+      ]
+    },
+    {
+      key: 'final',
+      title: '收尾验收',
+      icon: <CheckCircleOutlined />,
+      color: '#52c41a',
+      duration: '3-7天',
+      description: '清洁、验收、交付使用',
+      subSteps: [
+        '卫生清洁',
+        '电器调试',
+        '门窗调试',
+        '客户验收',
+        '交付使用'
+      ]
+    }
+  ];
 
-      {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 24 }} />}
+  // 获取当前施工阶段状态
+  const getStepStatus = (stepKey) => {
+    // 查找正在进行的施工项目
+    const inProgressConstructions = constructions.filter(c => c.status === 'in_progress');
+    const completedConstructions = constructions.filter(c => c.status === 'completed');
+
+    if (inProgressConstructions.length === 0 && completedConstructions.length === 0) return 'wait';
+
+    // 根据施工阶段判断状态
+    const stageMap = {
+      '水电': 'water_electric',
+      '泥瓦': 'masonry',
+      '木工': 'woodworking',
+      '油漆': 'painting',
+      '安装': 'installation'
+    };
+
+    // 获取所有已完成的阶段
+    const completedStages = completedConstructions.map(c => stageMap[c.stage]).filter(Boolean);
+    const inProgressStages = inProgressConstructions.map(c => stageMap[c.stage]).filter(Boolean);
+
+    if (completedStages.includes(stepKey)) return 'finish';
+    if (inProgressStages.includes(stepKey)) return 'process';
+
+    // 如果有进行中的项目，判断当前阶段
+    if (inProgressStages.length > 0) {
+      const currentStepIndex = constructionSteps.findIndex(step => inProgressStages.includes(step.key));
+      const targetStepIndex = constructionSteps.findIndex(step => step.key === stepKey);
+
+      if (targetStepIndex < currentStepIndex) return 'finish';
+      if (targetStepIndex === currentStepIndex) return 'process';
+    }
+
+    return 'wait';
+  };
+
+  // 计算整体施工进度
+  const calculateOverallProgress = () => {
+    const totalSteps = constructionSteps.length;
+    const completedSteps = constructionSteps.filter(step => getStepStatus(step.key) === 'finish').length;
+    const inProgressSteps = constructionSteps.filter(step => getStepStatus(step.key) === 'process').length;
+
+    return Math.round(((completedSteps + inProgressSteps * 0.5) / totalSteps) * 100);
+  };
+
+  return (
+    <div className="construction-management-container" style={{ 
+      padding: '24px', 
+      backgroundColor: '#f0f2f5', 
+      minHeight: 'calc(100vh - 112px)' 
+    }}>
+      {/* 顶部标题区域 */}
+      <div style={{
+        marginBottom: '32px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '32px',
+        borderRadius: '16px',
+        color: 'white',
+        boxShadow: '0 8px 24px rgba(102, 126, 234, 0.25)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        <div style={{
+          position: 'absolute',
+          top: -50,
+          right: -50,
+          width: 200,
+          height: 200,
+          background: 'rgba(255, 255, 255, 0.1)',
+          borderRadius: '50%',
+          filter: 'blur(40px)'
+        }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <Title level={2} style={{ color: 'white', marginBottom: '8px', fontWeight: 'bold' }}>
+            <RocketOutlined style={{ marginRight: '12px' }} />
+            施工管控中心
+          </Title>
+          <Paragraph style={{ color: 'rgba(255,255,255,0.95)', fontSize: '16px', margin: 0 }}>
+            查看完整的装修施工流程，管理项目进度和费用记录，实时监控工程进展
+          </Paragraph>
+        </div>
+      </div>
 
       <Tabs defaultActiveKey="construction">
         <TabPane tab="施工进度" key="construction">
+          {/* 施工流程时间线 */}
+          <Card
+            title={
+              <Space>
+                <ClockCircleOutlined style={{ color: '#1890ff' }} />
+                装修施工流程
+                <Tag color="blue" style={{ borderRadius: '12px' }}>
+                  {constructionSteps.filter(step => getStepStatus(step.key) === 'finish').length}/{constructionSteps.length} 阶段
+                </Tag>
+              </Space>
+            }
+            style={{ marginBottom: 24, borderRadius: '16px', boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)', border: 'none' }}
+            bodyStyle={{ padding: '24px' }}
+            extra={
+              <Space direction="vertical" size={0}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  总工期约 60-100 天
+                </Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Progress
+                    percent={calculateOverallProgress()}
+                    size="small"
+                    strokeColor="#1890ff"
+                    style={{ width: '80px' }}
+                    showInfo={false}
+                  />
+                  <Text strong style={{ fontSize: '12px', color: '#1890ff' }}>
+                    {calculateOverallProgress()}%
+                  </Text>
+                </div>
+              </Space>
+            }
+          >
+            <Timeline
+              mode="alternate"
+              style={{ paddingTop: '20px' }}
+            >
+              {constructionSteps.map((step, index) => {
+                const status = getStepStatus(step.key);
+                const dotColor = status === 'finish' ? step.color :
+                               status === 'process' ? '#faad14' : '#d9d9d9';
+
+                return (
+                  <Timeline.Item
+                    key={step.key}
+                    color={dotColor}
+                    dot={
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        background: dotColor,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '16px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+                      }}>
+                        {step.icon}
+                      </div>
+                    }
+                  >
+                    <Card
+                      size="small"
+                      style={{
+                        borderRadius: '8px',
+                        border: status === 'process' ? `2px solid ${step.color}` : '1px solid #f0f0f0',
+                        background: status === 'process' ? `${step.color}08` : 'white',
+                        boxShadow: status === 'process' ? `0 0 12px ${step.color}20` : 'none'
+                      }}
+                    >
+                      <div style={{ padding: '8px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                          <Text strong style={{ fontSize: '16px', color: step.color }}>
+                            {step.title}
+                          </Text>
+                          <Tag color={status === 'finish' ? 'green' : status === 'process' ? 'orange' : 'default'}>
+                            {status === 'finish' ? '已完成' : status === 'process' ? '进行中' : '待开始'}
+                          </Tag>
+                          <Text type="secondary" style={{ fontSize: '12px' }}>
+                            预计 {step.duration}
+                          </Text>
+                        </div>
+                        <Paragraph style={{ margin: '8px 0', color: '#666', fontSize: '14px' }}>
+                          {step.description}
+                        </Paragraph>
+                        <div style={{ marginTop: '12px' }}>
+                          <Text strong style={{ fontSize: '13px', color: '#333' }}>主要工作：</Text>
+                          <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {step.subSteps.map((subStep, subIndex) => (
+                              <Tag
+                                key={subIndex}
+                                size="small"
+                                style={{
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  margin: 0
+                                }}
+                              >
+                                {subStep}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  </Timeline.Item>
+                );
+              })}
+            </Timeline>
+          </Card>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <Typography.Text strong>施工进度列表</Typography.Text>
+            <div>
+              <Typography.Text strong style={{ fontSize: '16px' }}>施工进度列表</Typography.Text>
+              <br />
+              <Typography.Text type="secondary" style={{ fontSize: '14px' }}>
+                记录和管理具体的施工任务进度
+              </Typography.Text>
+            </div>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -622,17 +963,42 @@ const ConstructionManagement = () => {
 
           <Card
             hoverable
-            style={{ borderRadius: '8px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}
+            style={{ 
+              borderRadius: '16px', 
+              boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+              border: 'none'
+            }}
           >
-            <Table
-              columns={constructionColumns}
-              dataSource={constructions}
-              rowKey="id"
-              loading={loading}
-              pagination={{ pageSize: 10 }}
-              locale={{ emptyText: '暂无施工进度信息' }}
-              scroll={{ x: 1000 }}
-            />
+            {constructions.length === 0 && !loading ? (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <div>
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      暂无施工进度信息
+                    </Text>
+                    <Button
+                      type="primary"
+                      icon={<PlusOutlined />}
+                      onClick={openCreateModal}
+                      style={{ borderRadius: '8px' }}
+                    >
+                      添加第一条施工进度
+                    </Button>
+                  </div>
+                }
+              />
+            ) : (
+              <Table
+                columns={constructionColumns}
+                dataSource={constructions}
+                rowKey="id"
+                loading={loading}
+                pagination={{ pageSize: 10 }}
+                locale={{ emptyText: '暂无数据' }}
+                scroll={{ x: 1000 }}
+              />
+            )}
           </Card>
         </TabPane>
 
@@ -649,8 +1015,22 @@ const ConstructionManagement = () => {
               </Button>
             </Col>
             <Col>
-              <Card style={{ borderRadius: '8px' }}>
-                <Statistic title="总费用" value={totalCost} prefix={<DollarOutlined />} suffix="元" precision={2} />
+              <Card 
+                style={{ 
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 16px rgba(82, 196, 26, 0.12)',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #f6ffed 0%, #ffffff 100%)'
+                }}
+              >
+                <Statistic 
+                  title="总费用" 
+                  value={totalCost} 
+                  prefix={<DollarOutlined />} 
+                  suffix="元" 
+                  precision={2}
+                  valueStyle={{ color: '#52c41a', fontSize: '24px', fontWeight: 'bold' }}
+                />
               </Card>
             </Col>
           </Row>
@@ -658,26 +1038,68 @@ const ConstructionManagement = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Card
-                title="费用分布"
-                style={{ borderRadius: '8px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}
+                title={
+                  <Space>
+                    <BarChartOutlined style={{ color: '#52c41a' }} />
+                    <span>费用分布</span>
+                  </Space>
+                }
+                style={{ 
+                  borderRadius: '16px', 
+                  boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+                  border: 'none'
+                }}
               >
-                <div id="costChart" style={{ width: '100%', height: 300 }}></div>
+                {costs.length > 0 ? (
+                  <div ref={chartRef} style={{ width: '100%', height: 320 }}></div>
+                ) : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="暂无费用数据"
+                    style={{ padding: '40px 0' }}
+                  />
+                )}
               </Card>
             </Col>
             <Col span={12}>
               <Card
                 hoverable
-                style={{ borderRadius: '8px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)' }}
+                style={{ 
+                  borderRadius: '16px', 
+                  boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+                  border: 'none'
+                }}
               >
-                <Table
-                  columns={costColumns}
-                  dataSource={costs}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 10 }}
-                  locale={{ emptyText: '暂无费用记录信息' }}
-                  scroll={{ x: 1000 }}
-                />
+                {costs.length === 0 && !loading ? (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      <div>
+                        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                          暂无费用记录信息
+                        </Text>
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          onClick={openCreateCostModal}
+                          style={{ borderRadius: '8px' }}
+                        >
+                          添加第一条费用记录
+                        </Button>
+                      </div>
+                    }
+                  />
+                ) : (
+                  <Table
+                    columns={costColumns}
+                    dataSource={costs}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 10 }}
+                    locale={{ emptyText: '暂无数据' }}
+                    scroll={{ x: 1000 }}
+                  />
+                )}
               </Card>
             </Col>
           </Row>

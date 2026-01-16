@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Button, Table, Modal, Form, Input, Select, InputNumber, DatePicker, message, Typography, Space, Popconfirm, Tabs, Row, Col, Alert, Statistic, Progress, Badge } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined, DollarOutlined, BarChartOutlined, AlertOutlined, DownloadOutlined } from '@ant-design/icons';
 import * as echarts from 'echarts';
-import { constructionAPI, projectAPI } from '../services/api';
+import { constructionAPI, projectAPI, budgetAPI } from '../services/api';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -167,69 +167,33 @@ const BudgetManagement = () => {
     }
   };
 
-  // 生成智能预算
+  // 生成智能预算（调用后端接口）
   const generateBudget = async (values) => {
     try {
       setBudgetLoading(true);
+      const response = await budgetAPI.generate(values);
 
-      // 模拟预算生成
-      const { houseType, area, style, city, level } = values;
+      if (response.status === 'success' && response.data) {
+        const { totalBudget, breakdown, recommendations, warning } = response.data;
 
-      // 根据输入参数计算预算
-      let basePrice = 0;
-      switch (level) {
-        case 'simple':
-          basePrice = 500;
-          break;
-        case 'standard':
-          basePrice = 1000;
-          break;
-        case 'luxury':
-          basePrice = 2000;
-          break;
-        default:
-          basePrice = 1000;
+        setBudget({
+          total: totalBudget || 0,
+          details: {
+            labor: breakdown?.labor?.amount || 0,
+            materials: breakdown?.materials?.amount || 0,
+            design: breakdown?.design?.amount || 0,
+            other: breakdown?.other?.amount || 0
+          },
+          recommendations: Array.isArray(recommendations) ? recommendations : [],
+          warning: warning || '',
+          input: values
+        });
+        message.success('预算生成成功');
+      } else {
+        message.error(response.message || '预算生成失败');
       }
-
-      // 根据风格调整价格
-      let styleFactor = 1;
-      switch (style) {
-        case 'modern':
-          styleFactor = 1;
-          break;
-        case 'chinese':
-          styleFactor = 1.2;
-          break;
-        case 'european':
-          styleFactor = 1.3;
-          break;
-        case 'minimalist':
-          styleFactor = 0.9;
-          break;
-        default:
-          styleFactor = 1;
-      }
-
-      // 计算总预算
-      const totalBudget = area * basePrice * styleFactor;
-
-      // 拆分预算
-      const budgetDetails = {
-        labor: totalBudget * 0.3,
-        materials: totalBudget * 0.4,
-        design: totalBudget * 0.1,
-        other: totalBudget * 0.2
-      };
-
-      setBudget({
-        total: totalBudget,
-        details: budgetDetails,
-        input: values
-      });
-
-      message.success('预算生成成功');
     } catch (error) {
-      message.error('预算生成失败');
+      message.error(error.message || '预算生成失败');
       console.error('Generate budget error:', error);
     } finally {
       setBudgetLoading(false);
@@ -652,18 +616,47 @@ const BudgetManagement = () => {
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>预算明细：</Text>
                   <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-                    <li>人工费用：¥{budget.details.labor.toFixed(2)}元 ({(budget.details.labor / budget.total * 100).toFixed(0)}%)</li>
-                    <li>材料费用：¥{budget.details.materials.toFixed(2)}元 ({(budget.details.materials / budget.total * 100).toFixed(0)}%)</li>
-                    <li>设计费用：¥{budget.details.design.toFixed(2)}元 ({(budget.details.design / budget.total * 100).toFixed(0)}%)</li>
-                    <li>其他费用：¥{budget.details.other.toFixed(2)}元 ({(budget.details.other / budget.total * 100).toFixed(0)}%)</li>
+                    <li>
+                      人工费用：¥{budget.details.labor.toFixed(2)}元 (
+                      {budget.total > 0 ? (budget.details.labor / budget.total * 100).toFixed(0) : 0}%)
+                    </li>
+                    <li>
+                      材料费用：¥{budget.details.materials.toFixed(2)}元 (
+                      {budget.total > 0 ? (budget.details.materials / budget.total * 100).toFixed(0) : 0}%)
+                    </li>
+                    <li>
+                      设计费用：¥{budget.details.design.toFixed(2)}元 (
+                      {budget.total > 0 ? (budget.details.design / budget.total * 100).toFixed(0) : 0}%)
+                    </li>
+                    <li>
+                      其他费用：¥{budget.details.other.toFixed(2)}元 (
+                      {budget.total > 0 ? (budget.details.other / budget.total * 100).toFixed(0) : 0}%)
+                    </li>
                   </ul>
                 </div>
-                <Alert
-                  message="预算建议"
-                  description="此预算为参考值，实际费用可能因市场波动、材料选择等因素有所不同。建议预留10-15%的弹性预算以应对突发情况。"
-                  type="info"
-                  showIcon
-                />
+                {budget.recommendations?.length > 0 && (
+                  <Alert
+                    message="预算建议"
+                    description={
+                      <ul style={{ margin: 0, paddingLeft: 20 }}>
+                        {budget.recommendations.map((item, index) => (
+                          <li key={index}>{item}</li>
+                        ))}
+                      </ul>
+                    }
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                  />
+                )}
+                {budget.warning && (
+                  <Alert
+                    message="风险提示"
+                    description={budget.warning}
+                    type="warning"
+                    showIcon
+                  />
+                )}
               </Card>
             )}
           </Card>

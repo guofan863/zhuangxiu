@@ -18,10 +18,9 @@ const CompanySelection = () => {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [companyModalVisible, setCompanyModalVisible] = useState(false);
   const [contractModalVisible, setContractModalVisible] = useState(false);
   const [analyzeResult, setAnalyzeResult] = useState(null);
-  const [form] = Form.useForm();
+  const [contractForm] = Form.useForm();
   const chartRef = React.useRef(null);
 
   useEffect(() => {
@@ -91,22 +90,6 @@ const CompanySelection = () => {
     myChart.setOption(option);
   };
 
-  // 添加公司
-  const handleAddCompany = async (values) => {
-    try {
-      setLoading(true);
-      await companyAPI.create(values);
-      message.success('公司添加成功');
-      fetchCompanies();
-      setCompanyModalVisible(false);
-      form.resetFields();
-    } catch (error) {
-      message.error('添加失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // 选择公司
   const handleSelectCompany = (company) => {
     setSelectedCompany(company);
@@ -127,7 +110,7 @@ const CompanySelection = () => {
       message.success('合同上传成功');
       fetchContracts();
       setContractModalVisible(false);
-      form.resetFields();
+      contractForm.resetFields();
       setCurrentStep(2);
 
       // 如果有合同ID，自动触发审核
@@ -204,10 +187,23 @@ const CompanySelection = () => {
         {currentStep === 0 && (
           <>
             <div style={{ marginBottom: '16px', textAlign: 'right' }}>
-              <Button type="primary" onClick={() => setCompanyModalVisible(true)}>
-                添加待选公司
-              </Button>
+              <Space>
+                <Button onClick={fetchCompanies}>刷新公司列表</Button>
+                <Button type="primary" onClick={() => window.location.href = '/company'}>
+                  去公司对比管理
+                </Button>
+              </Space>
             </div>
+
+            {companies.length === 0 && (
+              <Alert
+                message="暂无公司数据"
+                description="请先在「装修公司对比」页面添加公司信息，然后返回此页面进行选择。"
+                type="info"
+                showIcon
+                style={{ marginBottom: '16px' }}
+              />
+            )}
 
             {companies.length > 1 && (
               <Card title="综合实力对比" style={{ marginBottom: '16px' }}>
@@ -306,60 +302,6 @@ const CompanySelection = () => {
         )}
       </Card>
 
-      {/* 添加公司弹窗 */}
-      <Modal
-        title="添加待选公司"
-        open={companyModalVisible}
-        onCancel={() => setCompanyModalVisible(false)}
-        footer={null}
-        width={600}
-      >
-        <Form form={form} layout="vertical" onFinish={handleAddCompany}>
-          <Form.Item name="name" label="公司名称" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="contactName" label="联系人" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="contactPhone" label="联系方式" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="qualificationLevel" label="资质等级" rules={[{ required: true }]}>
-            <Select>
-              <Option value="一级">一级</Option>
-              <Option value="二级">二级</Option>
-              <Option value="三级">三级</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="serviceScope" label="服务范围" rules={[{ required: true }]}>
-            <TextArea rows={3} />
-          </Form.Item>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
-            <Form.Item name="priceScore" label="价格" rules={[{ required: true }]}>
-              <InputNumber min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="periodScore" label="工期" rules={[{ required: true }]}>
-              <InputNumber min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="evaluationScore" label="评价" rules={[{ required: true }]}>
-              <InputNumber min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="serviceScore" label="服务" rules={[{ required: true }]}>
-              <InputNumber min={0} max={100} />
-            </Form.Item>
-            <Form.Item name="qualificationScore" label="资质" rules={[{ required: true }]}>
-              <InputNumber min={0} max={100} />
-            </Form.Item>
-          </div>
-          <Form.Item>
-            <Space style={{ float: 'right' }}>
-              <Button onClick={() => setCompanyModalVisible(false)}>取消</Button>
-              <Button type="primary" htmlType="submit" loading={loading}>添加</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
       {/* 上传合同弹窗 */}
       <Modal
         title="上传装修合同"
@@ -368,7 +310,7 @@ const CompanySelection = () => {
         footer={null}
         width={600}
       >
-        <Form form={form} layout="vertical" onFinish={handleUploadContract}>
+        <Form form={contractForm} layout="vertical" onFinish={handleUploadContract}>
           <Form.Item name="name" label="合同名称" rules={[{ required: true }]}>
             <Input placeholder="例如：XX装修公司施工合同" />
           </Form.Item>

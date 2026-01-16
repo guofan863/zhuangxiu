@@ -13,18 +13,33 @@ exports.generateBudget = async (req, res) => {
       });
     }
 
-    // 调用大模型生成预算
+    // 验证面积为正数
+    const areaNum = parseFloat(area);
+    if (isNaN(areaNum) || areaNum <= 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: '面积必须为正数'
+      });
+    }
+
+    console.log('开始生成预算:', { houseType, area: areaNum, style, city, level });
+
+    // 调用生成预算（会自动使用备用方案如果LLM不可用）
     const budgetResult = await generateBudget({
       houseType,
-      area: parseFloat(area),
+      area: areaNum,
       style,
       city,
       level
     });
 
+    const message = budgetResult.source === 'llm' 
+      ? '预算生成成功（AI智能生成）' 
+      : '预算生成成功（使用备用计算方案）';
+
     res.status(200).json({
       status: 'success',
-      message: '预算生成成功',
+      message: message,
       data: budgetResult
     });
   } catch (error) {
@@ -32,7 +47,7 @@ exports.generateBudget = async (req, res) => {
     res.status(500).json({
       status: 'error',
       message: '预算生成失败',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

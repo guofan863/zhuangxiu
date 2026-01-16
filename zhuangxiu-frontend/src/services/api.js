@@ -123,7 +123,8 @@ export const materialAPI = {
 };
 
 export const budgetAPI = {
-  generate: (data) => api.post('/budget/generate', data)
+  // 预算生成接口需要更长的超时时间（LLM调用可能需要30-60秒）
+  generate: (data) => api.post('/budget/generate', data, { timeout: 60000 }) // 60秒超时
 };
 
 export const weatherAPI = {

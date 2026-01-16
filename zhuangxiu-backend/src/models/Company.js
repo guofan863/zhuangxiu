@@ -59,12 +59,48 @@ const Company = sequelize.define('Company', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  registeredCapital: {
+    type: DataTypes.FLOAT,
+    allowNull: true
+  },
   establishedYear: {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  storeCount: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  hasOwnWorkers: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   caseCount: {
     type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  quotationMode: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  depositRatio: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  addItemPolicy: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  waterElectricBilling: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  taxIncluded: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  manageFeeRate: {
+    type: DataTypes.FLOAT,
     allowNull: true
   },
   price: {
@@ -83,6 +119,14 @@ const Company = sequelize.define('Company', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  delayCompensation: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  hiddenWorkWarranty: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   warrantyPeriod: {
     type: DataTypes.INTEGER,
     allowNull: true
@@ -90,6 +134,42 @@ const Company = sequelize.define('Company', {
   hasSupervision: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  supervisionType: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  hasCloudMonitoring: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  processStandard: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  mainMaterialBrands: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  auxMaterialBrands: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  ecoLevel: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  designerLevel: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  serviceResponseHours: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  complaintCount: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   },
   evaluation: {
     type: DataTypes.FLOAT,

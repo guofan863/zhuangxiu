@@ -3,7 +3,8 @@ const axios = require('axios');
 // 大模型API配置
 const LLM_API_URL = process.env.LLM_API_URL || 'http://127.0.0.1:1234/v1/chat/completions';
 const LLM_MODEL = process.env.LLM_MODEL || 'local-model';
-const LLM_TIMEOUT = 30000; // 30秒超时
+const LLM_TIMEOUT = parseInt(process.env.LLM_TIMEOUT) || 45000; // 45秒超时，可配置
+const LLM_ENABLED = process.env.LLM_ENABLED !== 'false'; // 默认启用，可通过环境变量禁用
 
 /**
  * 调用大模型API
@@ -12,7 +13,14 @@ const LLM_TIMEOUT = 30000; // 30秒超时
  * @returns {Promise<string>} 大模型的回复
  */
 async function callLLM(prompt, options = {}) {
+  // 如果LLM未启用，直接抛出错误，让调用方使用备用方案
+  if (!LLM_ENABLED) {
+    console.log('LLM服务未启用，跳过调用');
+    throw new Error('LLM服务未启用');
+  }
+
   try {
+    console.log('正在调用LLM API:', LLM_API_URL);
     const response = await axios.post(
       LLM_API_URL,
       {
@@ -41,8 +49,16 @@ async function callLLM(prompt, options = {}) {
       throw new Error('大模型返回数据格式错误');
     }
   } catch (error) {
-    console.error('调用大模型API失败:', error.message);
-    throw error;
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      console.error('调用大模型API超时:', error.message);
+      throw new Error('LLM服务响应超时，请检查LLM服务是否正常运行');
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('无法连接到LLM服务:', error.message);
+      throw new Error('无法连接到LLM服务，请检查LLM服务是否启动');
+    } else {
+      console.error('调用大模型API失败:', error.message);
+      throw error;
+    }
   }
 }
 
@@ -205,10 +221,95 @@ async function evaluateDesignReduction(designInfo) {
  * @param {object} budgetParams - 预算参数
  * @returns {Promise<object>} 预算结果
  */
+// 备用预算计算逻辑（当LLM不可用时使用）
+function calculateBudgetFallback(budgetParams) {
+  const { houseType, area, style, city, level } = budgetParams;
+
+  // 根据装修档次确定基础单价（元/平方米）
+  let basePrice = 0;
+  switch (level) {
+    case 'simple':
+      basePrice = 500;
+      break;
+    case 'standard':
+      basePrice = 1000;
+      break;
+    case 'luxury':
+      basePrice = 2000;
+      break;
+    default:
+      basePrice = 1000;
+  }
+
+  // 根据装修风格调整系数
+  let styleFactor = 1;
+  switch (style) {
+    case 'modern':
+      styleFactor = 1;
+      break;
+    case 'chinese':
+      styleFactor = 1.2;
+      break;
+    case 'european':
+      styleFactor = 1.3;
+      break;
+    case 'minimalist':
+      styleFactor = 0.9;
+      break;
+    default:
+      styleFactor = 1;
+  }
+
+  // 根据城市调整系数（一线城市成本更高）
+  let cityFactor = 1;
+  if (['北京', '上海', '广州', '深圳'].includes(city)) {
+    cityFactor = 1.2;
+  } else if (['杭州', '南京', '成都', '武汉'].includes(city)) {
+    cityFactor = 1.1;
+  }
+
+  const totalBudget = Math.round(area * basePrice * styleFactor * cityFactor);
+
+  return {
+    totalBudget,
+    breakdown: {
+      labor: {
+        amount: Math.round(totalBudget * 0.3),
+        percentage: 30,
+        items: ['水电工', '泥瓦工', '木工', '油漆工']
+      },
+      materials: {
+        amount: Math.round(totalBudget * 0.4),
+        percentage: 40,
+        items: ['瓷砖', '地板', '涂料', '门窗']
+      },
+      design: {
+        amount: Math.round(totalBudget * 0.1),
+        percentage: 10,
+        items: ['设计费', '效果图']
+      },
+      other: {
+        amount: Math.round(totalBudget * 0.2),
+        percentage: 20,
+        items: ['管理费', '杂费']
+      }
+    },
+    recommendations: [
+      '建议预留10-15%的弹性预算',
+      '材料费用可根据实际需求调整',
+      '此预算为估算值，实际费用可能因市场波动有所不同'
+    ],
+    warning: '此预算为参考值，实际费用可能因市场波动有所不同',
+    source: 'fallback' // 标记为备用计算
+  };
+}
+
 async function generateBudget(budgetParams) {
   const { houseType, area, style, city, level } = budgetParams;
 
-  const prompt = `你是一个专业的装修预算评估专家。请根据以下信息生成一份详细的装修预算。
+  // 首先尝试使用LLM生成
+  try {
+    const prompt = `你是一个专业的装修预算评估专家。请根据以下信息生成一份详细的装修预算。
 
 装修需求：
 - 户型：${houseType}
@@ -256,90 +357,29 @@ async function generateBudget(budgetParams) {
   "warning": "此预算为参考值，实际费用可能因市场波动有所不同"
 }`;
 
-  try {
     const response = await callLLM(prompt, { max_tokens: 2000 });
 
     // 尝试解析JSON响应
-    let result;
     try {
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
+        const result = JSON.parse(jsonMatch[0]);
+        result.source = 'llm'; // 标记为LLM生成
+        return result;
       } else {
-        result = JSON.parse(response);
+        const result = JSON.parse(response);
+        result.source = 'llm';
+        return result;
       }
     } catch (parseError) {
-      // 如果解析失败，使用默认计算逻辑
-      let basePrice = 0;
-      switch (level) {
-        case 'simple':
-          basePrice = 500;
-          break;
-        case 'standard':
-          basePrice = 1000;
-          break;
-        case 'luxury':
-          basePrice = 2000;
-          break;
-        default:
-          basePrice = 1000;
-      }
-
-      let styleFactor = 1;
-      switch (style) {
-        case 'modern':
-          styleFactor = 1;
-          break;
-        case 'chinese':
-          styleFactor = 1.2;
-          break;
-        case 'european':
-          styleFactor = 1.3;
-          break;
-        case 'minimalist':
-          styleFactor = 0.9;
-          break;
-        default:
-          styleFactor = 1;
-      }
-
-      const totalBudget = area * basePrice * styleFactor;
-      result = {
-        totalBudget,
-        breakdown: {
-          labor: {
-            amount: totalBudget * 0.3,
-            percentage: 30,
-            items: ['水电工', '泥瓦工', '木工', '油漆工']
-          },
-          materials: {
-            amount: totalBudget * 0.4,
-            percentage: 40,
-            items: ['瓷砖', '地板', '涂料', '门窗']
-          },
-          design: {
-            amount: totalBudget * 0.1,
-            percentage: 10,
-            items: ['设计费', '效果图']
-          },
-          other: {
-            amount: totalBudget * 0.2,
-            percentage: 20,
-            items: ['管理费', '杂费']
-          }
-        },
-        recommendations: [
-          '建议预留10-15%的弹性预算',
-          '材料费用可根据实际需求调整'
-        ],
-        warning: '此预算为参考值，实际费用可能因市场波动有所不同'
-      };
+      console.warn('LLM响应JSON解析失败，使用备用计算逻辑');
+      // JSON解析失败，使用备用逻辑
+      return calculateBudgetFallback(budgetParams);
     }
-
-    return result;
   } catch (error) {
-    console.error('预算生成失败:', error);
-    throw error;
+    console.warn('LLM调用失败，使用备用计算逻辑:', error.message);
+    // LLM调用失败，使用备用计算逻辑
+    return calculateBudgetFallback(budgetParams);
   }
 }
 

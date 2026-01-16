@@ -14,7 +14,7 @@ exports.protect = async (req, res, next) => {
     // 验证token
     const decoded = verifyToken(token);
     
-    if (!decoded) {
+    if (!decoded || !decoded.id) {
       return res.status(401).json({ status: 'error', message: '无效的认证令牌' });
     }
     
@@ -29,7 +29,13 @@ exports.protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({ status: 'error', message: '认证失败' });
+    console.error('认证中间件错误:', error);
+    console.error('错误详情:', error.message);
+    res.status(401).json({ 
+      status: 'error', 
+      message: '认证失败',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
